@@ -6,6 +6,17 @@ local Utils = require(
 
 local Static = {}
 
+---------------------------------------------------------------------
+-- EFFECT REGISTRATION
+---------------------------------------------------------------------
+
+Static.Name = "Static"
+Static.Tag = "Static"
+
+---------------------------------------------------------------------
+-- CONFIGURATION
+---------------------------------------------------------------------
+
 local IMAGES = {
 	"rbxassetid://129539846017162",
 	"rbxassetid://130020915925188",
@@ -16,6 +27,7 @@ local IMAGES = {
 local DEFAULT = {
 	Interval = 0.05,
 	Crossfade = 0.08,
+
 	ZIndex = 10,
 
 	Color = Color3.new(1, 1, 1),
@@ -27,14 +39,17 @@ local DEFAULT = {
 	),
 }
 
+---------------------------------------------------------------------
+-- STATE
+---------------------------------------------------------------------
+
 local states = setmetatable({}, {
-	__mode = "k"
+	__mode = "k",
 })
 
-local FADE_INFO = TweenInfo.new(
-	DEFAULT.Crossfade,
-	Enum.EasingStyle.Linear
-)
+---------------------------------------------------------------------
+-- PRELOAD
+---------------------------------------------------------------------
 
 task.spawn(function()
 	pcall(
@@ -44,6 +59,10 @@ task.spawn(function()
 	)
 end)
 
+---------------------------------------------------------------------
+-- TILE
+---------------------------------------------------------------------
+
 local function createTile(
 	parent,
 	image,
@@ -52,6 +71,8 @@ local function createTile(
 	z
 )
 	local tile = Instance.new("ImageLabel")
+
+	tile.Name = "Tile"
 
 	tile.AnchorPoint = Vector2.new(
 		0.5,
@@ -91,8 +112,16 @@ local function createTile(
 	return tile
 end
 
+---------------------------------------------------------------------
+-- BIND
+---------------------------------------------------------------------
+
 function Static.Bind(obj)
 	if states[obj] then
+		return
+	end
+
+	if not obj:IsA("GuiObject") then
 		return
 	end
 
@@ -103,6 +132,10 @@ function Static.Bind(obj)
 
 		return
 	end
+
+	-----------------------------------------------------------------
+	-- CONFIG
+	-----------------------------------------------------------------
 
 	local interval = math.max(
 		Utils.GetNumber(
@@ -141,6 +174,10 @@ function Static.Bind(obj)
 			or color
 	end
 
+	-----------------------------------------------------------------
+	-- CANVAS
+	-----------------------------------------------------------------
+
 	local canvas = Instance.new(
 		"CanvasGroup"
 	)
@@ -171,11 +208,15 @@ function Static.Bind(obj)
 		canvas
 	)
 
+	-----------------------------------------------------------------
+	-- TILES
+	-----------------------------------------------------------------
+
 	local first = createTile(
 		canvas,
 		IMAGES[1],
 		color,
-		0,
+		DEFAULT.Transparency,
 		z
 	)
 
@@ -187,8 +228,19 @@ function Static.Bind(obj)
 		z
 	)
 
-	Utils.CopyCorners(obj, first)
-	Utils.CopyCorners(obj, second)
+	Utils.CopyCorners(
+		obj,
+		first
+	)
+
+	Utils.CopyCorners(
+		obj,
+		second
+	)
+
+	-----------------------------------------------------------------
+	-- STATE
+	-----------------------------------------------------------------
 
 	local state = {
 		canvas = canvas,
@@ -197,10 +249,19 @@ function Static.Bind(obj)
 
 	states[obj] = state
 
+	-----------------------------------------------------------------
+	-- ANIMATION
+	-----------------------------------------------------------------
+
 	task.spawn(function()
 		local index = 1
 		local current = first
 		local nextTile = second
+
+		local fadeInfo = TweenInfo.new(
+			fade,
+			Enum.EasingStyle.Linear
+		)
 
 		while state.running
 			and obj.Parent
@@ -222,26 +283,21 @@ function Static.Bind(obj)
 			nextTile.ImageTransparency = 1
 
 			if fade > 0 then
-				local fadeIn = Utils.Tween(
-					nextTile,
-					TweenInfo.new(
-						fade,
-						Enum.EasingStyle.Linear
-					),
-					{
-						ImageTransparency =
-							DEFAULT.Transparency
-					}
-				)
+				local fadeIn =
+					Utils.Tween(
+						nextTile,
+						fadeInfo,
+						{
+							ImageTransparency =
+								DEFAULT.Transparency,
+						}
+					)
 
 				Utils.Tween(
 					current,
-					TweenInfo.new(
-						fade,
-						Enum.EasingStyle.Linear
-					),
+					fadeInfo,
 					{
-						ImageTransparency = 1
+						ImageTransparency = 1,
 					}
 				)
 
@@ -261,6 +317,10 @@ function Static.Bind(obj)
 	end)
 end
 
+---------------------------------------------------------------------
+-- UNBIND
+---------------------------------------------------------------------
+
 function Static.Unbind(obj)
 	local state = states[obj]
 
@@ -272,6 +332,7 @@ function Static.Unbind(obj)
 
 	if state.canvas then
 		state.canvas:Destroy()
+		state.canvas = nil
 	end
 
 	states[obj] = nil

@@ -1,6 +1,26 @@
-local Utils = require(script.Parent.Parent.Shared.Utils)
+local Utils = require(
+	script.Parent.Parent.Shared.Utils
+)
 
 local HoverLift = {}
+
+---------------------------------------------------------------------
+-- EFFECT REGISTRATION
+---------------------------------------------------------------------
+
+HoverLift.Name = "HoverLift"
+HoverLift.Tag = "HoverLift"
+
+HoverLift.Attribute = "HoverStyle"
+
+HoverLift.AttributeValues = {
+	Lift = true,
+	HoverLift = true,
+}
+
+---------------------------------------------------------------------
+-- CONFIGURATION
+---------------------------------------------------------------------
 
 local INFO = TweenInfo.new(
 	0.12,
@@ -8,22 +28,37 @@ local INFO = TweenInfo.new(
 	Enum.EasingDirection.Out
 )
 
+local SCALE = 1.05
+
+---------------------------------------------------------------------
+-- STATE
+---------------------------------------------------------------------
+
 local states = setmetatable({}, {
-	__mode = "k"
+	__mode = "k",
 })
+
+---------------------------------------------------------------------
+-- BIND
+---------------------------------------------------------------------
 
 function HoverLift.Bind(obj)
 	if states[obj] then
 		return
 	end
 
+	if not obj:IsA("GuiObject") then
+		return
+	end
+
 	local original = obj.Size
 
 	local target = UDim2.new(
-		original.X.Scale * 1.05,
-		original.X.Offset * 1.05,
-		original.Y.Scale * 1.05,
-		original.Y.Offset * 1.05
+		original.X.Scale * SCALE,
+		original.X.Offset * SCALE,
+
+		original.Y.Scale * SCALE,
+		original.Y.Offset * SCALE
 	)
 
 	local state = {
@@ -32,23 +67,39 @@ function HoverLift.Bind(obj)
 	}
 
 	state.enter = obj.MouseEnter:Connect(function()
+		if not obj.Parent then
+			return
+		end
+
 		Utils.Tween(
 			obj,
 			INFO,
-			{Size = target}
+			{
+				Size = state.target,
+			}
 		)
 	end)
 
 	state.leave = obj.MouseLeave:Connect(function()
+		if not obj.Parent then
+			return
+		end
+
 		Utils.Tween(
 			obj,
 			INFO,
-			{Size = original}
+			{
+				Size = state.original,
+			}
 		)
 	end)
 
 	states[obj] = state
 end
+
+---------------------------------------------------------------------
+-- UNBIND
+---------------------------------------------------------------------
 
 function HoverLift.Unbind(obj)
 	local state = states[obj]

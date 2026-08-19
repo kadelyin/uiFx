@@ -11,6 +11,24 @@ local Utils = require(
 
 local HoverTilt = {}
 
+---------------------------------------------------------------------
+-- EFFECT REGISTRATION
+---------------------------------------------------------------------
+
+HoverTilt.Name = "HoverTilt"
+HoverTilt.Tag = "HoverTilt"
+
+HoverTilt.Attribute = "HoverStyle"
+
+HoverTilt.AttributeValues = {
+	Tilt = true,
+	HoverTilt = true,
+}
+
+---------------------------------------------------------------------
+-- DEFAULTS
+---------------------------------------------------------------------
+
 local DEFAULT = {
 	FollowSpeed = 14,
 	ReturnSpeed = 10,
@@ -29,14 +47,23 @@ local DEFAULT = {
 	DisplayDistance = 10,
 }
 
+---------------------------------------------------------------------
+-- STATE
+---------------------------------------------------------------------
+
 local states = setmetatable({}, {
-	__mode = "k"
+	__mode = "k",
 })
 
 local active = {}
+
 local screens = setmetatable({}, {
-	__mode = "k"
+	__mode = "k",
 })
+
+---------------------------------------------------------------------
+-- SCREEN 3D
+---------------------------------------------------------------------
 
 local function getScreen(gui, distance)
 	local screen = screens[gui]
@@ -53,7 +80,7 @@ local function getScreen(gui, distance)
 
 	if not ok then
 		warn(
-			"[UIEffects] Screen3D failed:",
+			"[UIEffects] HoverTilt Screen3D failed:",
 			result
 		)
 
@@ -65,21 +92,9 @@ local function getScreen(gui, distance)
 	return result
 end
 
-local function remove(index, state)
-	if state.connections then
-		for _, connection in state.connections do
-			connection:Disconnect()
-		end
-	end
-
-	pcall(function()
-		state.component:Disable()
-	end)
-
-	states[state.object] = nil
-
-	table.remove(active, index)
-end
+---------------------------------------------------------------------
+-- METRICS
+---------------------------------------------------------------------
 
 local function updateMetrics(state)
 	local obj = state.object
@@ -91,12 +106,38 @@ local function updateMetrics(state)
 	local position = obj.AbsolutePosition
 	local size = obj.AbsoluteSize
 
-	state.center = position + size / 2
+	state.center = position + size * 0.5
 	state.size = size
 end
 
+---------------------------------------------------------------------
+-- CLEANUP
+---------------------------------------------------------------------
+
+local function cleanup(index, state)
+	for _, connection in state.connections do
+		connection:Disconnect()
+	end
+
+	pcall(function()
+		state.component:Disable()
+	end)
+
+	states[state.object] = nil
+
+	table.remove(active, index)
+end
+
+---------------------------------------------------------------------
+-- BIND
+---------------------------------------------------------------------
+
 function HoverTilt.Bind(obj)
 	if states[obj] then
+		return
+	end
+
+	if not obj:IsA("GuiObject") then
 		return
 	end
 
@@ -214,33 +255,50 @@ function HoverTilt.Bind(obj)
 
 	updateMetrics(state)
 
-	state.positionConnection =
+	-----------------------------------------------------------------
+	-- METRICS
+	-----------------------------------------------------------------
+
+	local positionConnection =
 		obj:GetPropertyChangedSignal(
 			"AbsolutePosition"
 		):Connect(function()
 			updateMetrics(state)
 		end)
 
-	state.sizeConnection =
+	local sizeConnection =
 		obj:GetPropertyChangedSignal(
 			"AbsoluteSize"
 		):Connect(function()
 			updateMetrics(state)
 		end)
 
-	state.enter = obj.MouseEnter:Connect(function()
-		state.hover = true
-	end)
+	-----------------------------------------------------------------
+	-- HOVER
+	-----------------------------------------------------------------
 
-	state.leave = obj.MouseLeave:Connect(function()
-		state.hover = false
-	end)
+	local enterConnection =
+		obj.MouseEnter:Connect(function()
+			state.hover = true
+		end)
 
-	local name = obj:GetAttribute("Screen3DName")
+	local leaveConnection =
+		obj.MouseLeave:Connect(function()
+			state.hover = false
+		end)
+
+	-----------------------------------------------------------------
+	-- SCREEN 3D
+	-----------------------------------------------------------------
+
+	local screenName =
+		obj:GetAttribute("Screen3DName")
 
 	pcall(function()
-		if typeof(name) == "string" and name ~= "" then
-			component:Enable(name)
+		if typeof(screenName) == "string"
+			and screenName ~= ""
+		then
+			component:Enable(screenName)
 		else
 			component:Enable()
 		end
@@ -248,16 +306,25 @@ function HoverTilt.Bind(obj)
 		component.offset = base
 	end)
 
+	-----------------------------------------------------------------
+	-- STORE
+	-----------------------------------------------------------------
+
 	state.connections = {
-		state.positionConnection,
-		state.sizeConnection,
-		state.enter,
-		state.leave,
+		positionConnection,
+		sizeConnection,
+		enterConnection,
+		leaveConnection,
 	}
 
 	states[obj] = state
+
 	active[#active + 1] = state
 end
+
+---------------------------------------------------------------------
+-- UNBIND
+---------------------------------------------------------------------
 
 function HoverTilt.Unbind(obj)
 	local state = states[obj]
@@ -268,11 +335,15 @@ function HoverTilt.Unbind(obj)
 
 	for i = #active, 1, -1 do
 		if active[i] == state then
-			remove(i, state)
-			break
+			cleanup(i, state)
+			return
 		end
 	end
 end
+
+---------------------------------------------------------------------
+-- ONE SHARED RENDER LOOP
+---------------------------------------------------------------------
 
 RunService.RenderStepped:Connect(function(dt)
 	if #active == 0 then
@@ -286,7 +357,7 @@ RunService.RenderStepped:Connect(function(dt)
 		local obj = state.object
 
 		if not obj.Parent then
-			remove(i, state)
+			cleanup(i, state)
 			continue
 		end
 
@@ -335,22 +406,31 @@ RunService.RenderStepped:Connect(function(dt)
 
 			target =
 				CFrame.Angles(
-					math.rad(dy * state.pitch),
-					math.rad(dx * state.yaw),
-					math.rad(-dx * state.roll)
+					math.rad(
+						dy * state.pitch
+					),
+					math.rad(
+						dx * state.yaw
+					),
+					math.rad(
+						-dx * state.roll
+					)
 				)
 				* state.base
 		end
 
 		local speed =
 			state.hover
-			and state.follow
-			or state.returnSpeed
+				and state.follow
+				or state.returnSpeed
 
 		state.current =
 			state.current:Lerp(
 				target,
-				math.min(dt * speed, 1)
+				math.min(
+					dt * speed,
+					1
+				)
 			)
 
 		state.component.offset =

@@ -1,6 +1,19 @@
-local Utils = require(script.Parent.Parent.Shared.Utils)
+local Utils = require(
+	script.Parent.Parent.Shared.Utils
+)
 
 local ClickPop = {}
+
+---------------------------------------------------------------------
+-- EFFECT REGISTRATION
+---------------------------------------------------------------------
+
+ClickPop.Name = "ClickPop"
+ClickPop.Tag = "ClickPop"
+
+---------------------------------------------------------------------
+-- CONFIGURATION
+---------------------------------------------------------------------
 
 local INFO = TweenInfo.new(
 	0.12,
@@ -8,9 +21,20 @@ local INFO = TweenInfo.new(
 	Enum.EasingDirection.Out
 )
 
+local SCALE = 1.08
+local RETURN_DELAY = 0.12
+
+---------------------------------------------------------------------
+-- STATE
+---------------------------------------------------------------------
+
 local states = setmetatable({}, {
-	__mode = "k"
+	__mode = "k",
 })
+
+---------------------------------------------------------------------
+-- BIND
+---------------------------------------------------------------------
 
 function ClickPop.Bind(obj)
 	if not obj:IsA("GuiButton") then
@@ -24,34 +48,58 @@ function ClickPop.Bind(obj)
 	local original = obj.Size
 
 	local pop = UDim2.new(
-		original.X.Scale * 1.08,
-		original.X.Offset * 1.08,
-		original.Y.Scale * 1.08,
-		original.Y.Offset * 1.08
+		original.X.Scale * SCALE,
+		original.X.Offset * SCALE,
+
+		original.Y.Scale * SCALE,
+		original.Y.Offset * SCALE
 	)
 
-	local state = {}
+	local state = {
+		original = original,
+		pop = pop,
+	}
 
-	state.connection = obj.MouseButton1Click:Connect(function()
-		Utils.Tween(
-			obj,
-			INFO,
-			{Size = pop}
-		)
-
-		task.delay(0.12, function()
-			if obj.Parent then
-				Utils.Tween(
-					obj,
-					INFO,
-					{Size = original}
-				)
+	state.connection =
+		obj.MouseButton1Click:Connect(function()
+			if not obj.Parent then
+				return
 			end
+
+			Utils.Tween(
+				obj,
+				INFO,
+				{
+					Size = state.pop,
+				}
+			)
+
+			task.delay(
+				RETURN_DELAY,
+				function()
+					if not obj.Parent
+						or states[obj] ~= state
+					then
+						return
+					end
+
+					Utils.Tween(
+						obj,
+						INFO,
+						{
+							Size = state.original,
+						}
+					)
+				end
+			)
 		end)
-	end)
 
 	states[obj] = state
 end
+
+---------------------------------------------------------------------
+-- UNBIND
+---------------------------------------------------------------------
 
 function ClickPop.Unbind(obj)
 	local state = states[obj]
